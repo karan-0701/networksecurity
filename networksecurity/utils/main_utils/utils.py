@@ -42,7 +42,8 @@ def save_numpy_array_data(file_path: str, array: np.array):
 def save_object(file_path: str, obj: object):
     try:
         logging.info("Entered the save object method of MainUtils class")
-        os.makedirs(file_path, exist_ok=True)
+        dir_path=os.path.dirname(file_path)
+        os.makedirs(dir_path, exist_ok=True)
         with open(file_path, "wb") as file_obj:
             pickle.dump(obj, file_obj)
     except Exception as e:
