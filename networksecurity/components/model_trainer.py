@@ -34,6 +34,8 @@ from networksecurity.utils.ml_utils.metric.classification_metric import (
     get_classification_score
 )
 
+#dagshub.init(repo_owner='karan-0701', repo_name='networksecurity', mlflow=True)
+
 load_dotenv()
 mlflow_uri = os.getenv("MLFLOW_TRACKING_URI")
 mlflow_user = os.getenv("MLFLOW_TRACKING_USERNAME")
@@ -49,6 +51,11 @@ class ModelTrainer:
             raise NetworkSecurityException(e, sys)
     
     def track_mlflow(self, best_model, classification_metric: ClassificationMetricArtifact):
+        
+        mlflow.set_tracking_uri(mlflow_uri)
+        os.environ["MLFLOW_TRACKING_USERNAME"] = mlflow_user
+        os.environ["MLFLOW_TRACKING_PASSWORD"] = mlflow_pass
+        
         with mlflow.start_run():
             f1_score=classification_metric.f1_score
             precision_score=classification_metric.precision_score
@@ -57,7 +64,7 @@ class ModelTrainer:
             mlflow.log_metric("f1_score", f1_score)
             mlflow.log_metric("precision", precision_score)
             mlflow.log_metric("recall_score", recall_score)
-            mlflow.sklearn.load_model(best_model, "model")
+            mlflow.sklearn.log_model(best_model, "model")
             
     def train_model(self, X_train, y_train, X_test, y_test):
         models = {
@@ -65,7 +72,7 @@ class ModelTrainer:
             "Decision Tree": DecisionTreeClassifier(),
             "Gradient Boosting": GradientBoostingClassifier(verbose=1),
             "Logistic Regression": LogisticRegression(verbose=1),
-            "Adaboost": AdaBoostClassifier()
+            "AdaBoost": AdaBoostClassifier()
         }
         
         params={
@@ -78,7 +85,7 @@ class ModelTrainer:
             "Gradient Boosting": {
                 'learning_rate': [.1, .01, .05, .001],
                 'subsample': [0.6, 0.7, 0.75, 0.8, 0.85, 0.9],
-                'n_estimator': [8, 16, 32, 64, 128, 256]
+                'n_estimators': [8, 16, 32, 64, 128, 256]
             },
             "Logistic Regression": {},
             "AdaBoost": {
@@ -89,9 +96,10 @@ class ModelTrainer:
         model_report: dict = evaluate_models(X_train, y_train, X_test, y_test,
                                              models, params)  
         ## To get best model score from dict
-        
+        best_model_score = max(sorted(model_report.values()))
+                               
         best_model_name=list(model_report.keys())[
-            list(model_report.values()).index(best_model_name)
+            list(model_report.values()).index(best_model_score)
         ]
         best_model = models[best_model_name]
         y_train_pred=best_model.predict(X_train)
@@ -113,6 +121,8 @@ class ModelTrainer:
         
         Network_Model=NetworkModel(preprocessor=preprocessor, model=best_model)
         save_object(self.model_trainer_config.trained_model_file_path, obj=Network_Model)
+        
+        save_object("final_model/model.pkl", best_model)
         
         ## Model trainer Artifact
         model_trainer_artifact=ModelTrainerArtifact(trained_model_file_path=self.model_trainer_config.trained_model_file_path,
